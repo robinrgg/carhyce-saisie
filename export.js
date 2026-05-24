@@ -106,8 +106,6 @@ const Exporter = {
     const g = op.granulometrie;
     const granRows = [
       ['Granulométrie - Wolman'],
-      ['Date de pose', g.date_pose],
-      ['Situation particulière', g.situation_particuliere],
       ['Remarques', g.remarques],
       [],
       ['N°', 'Diamètre (mm)'],
@@ -149,14 +147,28 @@ const Exporter = {
       ['Date de pose', c.date_pose],
       ['Date de relève prévue', c.date_releve_prevue],
       ['Date de relève effective', c.date_releve_effective],
+      ['Photos de la relève', c.photos_releve],
       ['Remarques', c.remarques],
       [],
-      ['Radier', 'Bâtonnet', 'Lat WGS84', 'Lon WGS84', 'X L93', 'Y L93', 'Indice position', 'État', 'Profondeur oxy. (cm)', 'Remarques'],
     ];
     c.radiers.forEach(r => {
+      colRows.push(['']);
+      colRows.push([`Radier ${r.id}`]);
+      colRows.push(['  Latitude WGS84', r.lat]);
+      colRows.push(['  Longitude WGS84', r.lon]);
+      colRows.push(['  X L93 (m)', r.x_l93]);
+      colRows.push(['  Y L93 (m)', r.y_l93]);
+      colRows.push(['  Indice de repérage', r.indice_position]);
+      colRows.push(['  Remarques radier', r.remarques]);
+      colRows.push(['  Nb bâtonnets', r.nb_batonnets]);
+      colRows.push(['']);
+      colRows.push(['  Bâtonnet', 'État', 'Profondeur oxy. (cm)']);
       r.batonnets.forEach(b => {
-        colRows.push([r.id, b.code, b.lat, b.lon, b.x_l93, b.y_l93, b.indice_position, b.etat, b.profondeur_oxy_cm, b.remarques]);
+        colRows.push(['  ' + b.code, b.etat, b.profondeur_oxy_cm]);
       });
+      const vals = r.batonnets.filter(b => b.profondeur_oxy_cm != null).map(b => +b.profondeur_oxy_cm);
+      const moy = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : null;
+      colRows.push(['  Moyenne radier ' + r.id + ' (cm)', moy]);
     });
     const wsCol = XLSX.utils.aoa_to_sheet(colRows);
     XLSX.utils.book_append_sheet(wb, wsCol, 'Colmatage');

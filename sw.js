@@ -3,7 +3,7 @@
    Cache l'application pour utilisation hors-ligne sur le terrain
    ============================================================ */
 
-const CACHE_VERSION = 'carhyce-v1';
+const CACHE_VERSION = 'carhyce-v2';
 const CACHE_FILES = [
   './',
   './index.html',

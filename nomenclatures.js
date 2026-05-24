@@ -54,7 +54,9 @@ const NOM = {
   rive: ['Gauche', 'Droite'],
 
   // Substrats minéraux : code, libellé, borne inf (mm), borne sup (mm)
+  // TV = Terre Végétale, valeur par défaut pour les points hors d'eau (berges sèches)
   substrats_mineraux: [
+    { code: 'TV', libelle: 'Terre végétale',     min: null,   max: null },
     { code: 'V',  libelle: 'Vases',              min: 0,      max: 0.0625 },
     { code: 'A',  libelle: 'Argiles',            min: 0,      max: 0.0625 },
     { code: 'L',  libelle: 'Limons',             min: 0,      max: 0.0625 },

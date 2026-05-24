@@ -140,17 +140,17 @@ const DB = {
         date_releve_effective: '',
         photos_releve: '',
         radiers: [
-          { id: 'A', nb_batonnets: 4, batonnets: [
-            { code: 'A1', lat: null, lon: null, x_l93: null, y_l93: null, indice_position: '', etat: '', profondeur_oxy_cm: null, remarques: '' },
-            { code: 'A2', lat: null, lon: null, x_l93: null, y_l93: null, indice_position: '', etat: '', profondeur_oxy_cm: null, remarques: '' },
-            { code: 'A3', lat: null, lon: null, x_l93: null, y_l93: null, indice_position: '', etat: '', profondeur_oxy_cm: null, remarques: '' },
-            { code: 'A4', lat: null, lon: null, x_l93: null, y_l93: null, indice_position: '', etat: '', profondeur_oxy_cm: null, remarques: '' },
+          { id: 'A', lat: null, lon: null, x_l93: null, y_l93: null, indice_position: '', remarques: '', nb_batonnets: 4, batonnets: [
+            { code: 'A1', etat: '', profondeur_oxy_cm: null },
+            { code: 'A2', etat: '', profondeur_oxy_cm: null },
+            { code: 'A3', etat: '', profondeur_oxy_cm: null },
+            { code: 'A4', etat: '', profondeur_oxy_cm: null },
           ]},
-          { id: 'B', nb_batonnets: 4, batonnets: [
-            { code: 'B1', lat: null, lon: null, x_l93: null, y_l93: null, indice_position: '', etat: '', profondeur_oxy_cm: null, remarques: '' },
-            { code: 'B2', lat: null, lon: null, x_l93: null, y_l93: null, indice_position: '', etat: '', profondeur_oxy_cm: null, remarques: '' },
-            { code: 'B3', lat: null, lon: null, x_l93: null, y_l93: null, indice_position: '', etat: '', profondeur_oxy_cm: null, remarques: '' },
-            { code: 'B4', lat: null, lon: null, x_l93: null, y_l93: null, indice_position: '', etat: '', profondeur_oxy_cm: null, remarques: '' },
+          { id: 'B', lat: null, lon: null, x_l93: null, y_l93: null, indice_position: '', remarques: '', nb_batonnets: 4, batonnets: [
+            { code: 'B1', etat: '', profondeur_oxy_cm: null },
+            { code: 'B2', etat: '', profondeur_oxy_cm: null },
+            { code: 'B3', etat: '', profondeur_oxy_cm: null },
+            { code: 'B4', etat: '', profondeur_oxy_cm: null },
           ]},
         ],
       },

@@ -2,6 +2,15 @@
    CARHYCE Saisie Terrain — Application principale
    ============================================================ */
 
+// Parseur de nombre acceptant indifféremment point ou virgule comme séparateur
+function parseNum(v) {
+  if (v == null || v === '') return null;
+  const s = String(v).replace(',', '.').trim();
+  if (s === '' || s === '-' || s === '.') return null;
+  const n = parseFloat(s);
+  return isNaN(n) ? null : n;
+}
+
 const App = {
 
   state: {
@@ -35,7 +44,37 @@ const App = {
     const el = document.getElementById('screen-' + name);
     if (el) el.classList.add('active');
     this.state.screen = name;
+    this.updateHeaderButtons();
     window.scrollTo(0, 0);
+  },
+
+  // Met à jour visibilité des boutons home / back en fonction du contexte
+  updateHeaderButtons() {
+    const backBtn = document.getElementById('btn-back');
+    const homeBtn = document.getElementById('btn-home');
+    const s = this.state.screen;
+    if (s === 'home') {
+      // Aucun parent
+      backBtn.hidden = true;
+      homeBtn.hidden = true;
+    } else if (s === 'op') {
+      // Sommaire opération : pas de retour parent, juste accueil application
+      backBtn.hidden = true;
+      homeBtn.hidden = false;
+      homeBtn.title = 'Retour à l\'accueil CARHYCE';
+    } else if (s === 'transect-edit') {
+      // Édition transect : retour à la liste, et home
+      backBtn.hidden = false;
+      backBtn.title = 'Retour à la liste des transects';
+      homeBtn.hidden = false;
+      homeBtn.title = 'Retour à l\'accueil CARHYCE';
+    } else {
+      // Station, granulo, pente, colmatage, transects, export
+      backBtn.hidden = false;
+      backBtn.title = 'Retour au menu de l\'opération';
+      homeBtn.hidden = false;
+      homeBtn.title = 'Retour à l\'accueil CARHYCE';
+    }
   },
 
   async showHome() {
@@ -104,17 +143,20 @@ const App = {
   },
 
   bindHeader() {
-    document.getElementById('btn-menu').addEventListener('click', () => {
-      // Retour à l'écran opération si on est dans une sous-section, sinon home
-      if (this.state.op && ['station','granulo','pente','colmatage','transects','transect-edit','export'].includes(this.state.screen)) {
-        if (this.state.screen === 'transect-edit') {
-          this.openTransects();
-        } else {
-          this.openOperationScreen();
-        }
+    // Bouton "back" : remonte au parent contextuel
+    document.getElementById('btn-back').addEventListener('click', () => {
+      const s = this.state.screen;
+      if (s === 'transect-edit') {
+        this.openTransects();
+      } else if (['station','granulo','pente','colmatage','transects','export'].includes(s)) {
+        this.openOperationScreen();
       } else {
         this.showHome();
       }
+    });
+    // Bouton "home" : retour direct à l'accueil de l'application
+    document.getElementById('btn-home').addEventListener('click', () => {
+      this.showHome();
     });
   },
 
@@ -177,7 +219,7 @@ const App = {
     // Station
     const st = op.station;
     const stFilled = [st.code, st.cours_eau, st.date, st.lpb_ev_mesures[0], st.debit_m3s].filter(v => v !== null && v !== '').length;
-    set('prog-station', stFilled >= 5 ? '✓ saisi' : `${stFilled}/5 champs clés`, stFilled >= 5);
+    set('prog-station', stFilled >= 5 ? '✓ saisie' : (stFilled === 0 ? 'À saisir' : `${stFilled} champs renseignés`), stFilled >= 5);
     // Granulo
     const gNb = op.granulometrie.mesures_mm.filter(x => x != null && x !== '').length;
     set('prog-granulo', gNb === 0 ? 'À saisir' : `${gNb}/100 mesures`, gNb >= 100);
@@ -194,8 +236,21 @@ const App = {
     }
     // Transects
     const tActifs = op.transects.filter(t => t.actif);
-    const tDone = tActifs.filter(t => t.points.length > 0 && t.lpb_m && t.hpb_m).length;
+    const tDone = tActifs.filter(t => this.isTransectComplete(t)).length;
     set('prog-transects', `${tDone}/${tActifs.length} transects`, tDone === tActifs.length && tActifs.length > 0);
+  },
+
+  // Un transect est "complet" si :
+  //  - Lpb, Lm, Hpb tous renseignés
+  //  - au moins 8 points de mesure (CARHYCE = 7 segments + 2 berges)
+  //  - faciès affiné renseigné
+  //  - matériaux des deux berges renseignés
+  isTransectComplete(tr) {
+    if (tr.lpb_m == null || tr.lm_m == null || tr.hpb_m == null) return false;
+    if (!tr.points || tr.points.length < 8) return false;
+    if (!tr.facies_affine) return false;
+    if (!tr.berge_rg.materiaux || !tr.berge_rd.materiaux) return false;
+    return true;
   },
 
   // ============================================================
@@ -239,6 +294,7 @@ const App = {
     f.appendChild(lbl);
 
     let input;
+    const isNumber = (type === 'number');
     if (type === 'select') {
       input = document.createElement('select');
       const blank = document.createElement('option');
@@ -261,27 +317,29 @@ const App = {
       if (placeholder) input.placeholder = placeholder;
     } else {
       input = document.createElement('input');
-      input.type = type;
+      if (isNumber) {
+        // type="text" + inputmode="decimal" : accepte point ET virgule sans rejet navigateur
+        input.type = 'text';
+        input.inputMode = 'decimal';
+        input.autocomplete = 'off';
+      } else {
+        input.type = type;
+      }
       if (placeholder) input.placeholder = placeholder;
       if (inputmode) input.inputMode = inputmode;
-      if (step) input.step = step;
-      if (type === 'number') input.inputMode = 'decimal';
+      if (step && !isNumber) input.step = step;
       input.value = value == null ? '' : value;
     }
     if (readonly) input.readOnly = true;
     if (onChange) {
-      input.addEventListener('input', () => {
+      const handler = () => {
         let v = input.value;
-        if (type === 'number') v = v === '' ? null : parseFloat(v);
+        if (isNumber) v = parseNum(v);
         onChange(v);
         this.scheduleSave();
-      });
-      input.addEventListener('change', () => {
-        let v = input.value;
-        if (type === 'number') v = v === '' ? null : parseFloat(v);
-        onChange(v);
-        this.scheduleSave();
-      });
+      };
+      input.addEventListener('input', handler);
+      input.addEventListener('change', handler);
     }
     f.appendChild(input);
     if (note) {
@@ -548,16 +606,6 @@ const App = {
     const root = document.getElementById('form-granulo');
     root.innerHTML = '';
 
-    // Métadonnées
-    {
-      const { section, body } = this.section('Pose du Wolman');
-      const grid = this.grid();
-      grid.appendChild(this.field({ label: 'Date de pose', type: 'date', value: g.date_pose, onChange: v => g.date_pose = v }));
-      grid.appendChild(this.field({ label: 'Situation particulière', value: g.situation_particuliere, onChange: v => g.situation_particuliere = v, placeholder: 'Aucune si rien à signaler' }));
-      body.appendChild(grid);
-      root.appendChild(section);
-    }
-
     // Grille de saisie 100 mesures
     {
       const { section, body } = this.section('Diamètres mesurés (mm) — 100 éléments');
@@ -578,14 +626,12 @@ const App = {
         num.textContent = (i+1).toString();
         cell.appendChild(num);
         const inp = document.createElement('input');
-        inp.type = 'number';
-        inp.inputMode = 'numeric';
-        inp.step = '1';
-        inp.min = '0';
+        inp.type = 'text';
+        inp.inputMode = 'decimal';
+        inp.autocomplete = 'off';
         inp.value = g.mesures_mm[i] == null ? '' : g.mesures_mm[i];
         inp.addEventListener('input', () => {
-          const v = inp.value === '' ? null : parseFloat(inp.value);
-          g.mesures_mm[i] = v;
+          g.mesures_mm[i] = parseNum(inp.value);
           this.refreshGranuloStats();
           this.scheduleSave();
         });
@@ -724,20 +770,12 @@ const App = {
       const g = this.grid();
       g.appendChild(this.field({ label: 'Limite aval', value: tr.limite_aval, onChange: v => { tr.limite_aval = v; this.refreshPenteCalc(); }, placeholder: 'ex. Transect 1' }));
       g.appendChild(this.field({ label: 'Limite amont', value: tr.limite_amont, onChange: v => { tr.limite_amont = v; this.refreshPenteCalc(); }, placeholder: 'ex. Point 1' }));
-      g.appendChild(this.field({ label: 'Distance (m)', type: 'number', step: '0.1', value: tr.distance_m, onChange: v => { tr.distance_m = v; this.refreshPenteCalc(); } }));
+      g.appendChild(this.field({ label: 'Distance (m)', type: 'number', value: tr.distance_m, onChange: v => { tr.distance_m = v; this.refreshPenteCalc(); } }));
       card.appendChild(g);
 
-      const visAval = this.grid();
-      visAval.appendChild(this.field({ label: 'Aval — Fh (cm)', type: 'number', step: '0.1', value: tr.aval.fh, onChange: v => { tr.aval.fh = v; this.refreshPenteCalc(); } }));
-      visAval.appendChild(this.field({ label: 'Aval — Fm (cm)', type: 'number', step: '0.1', value: tr.aval.fm, onChange: v => { tr.aval.fm = v; this.refreshPenteCalc(); } }));
-      visAval.appendChild(this.field({ label: 'Aval — Fb (cm)', type: 'number', step: '0.1', value: tr.aval.fb, onChange: v => { tr.aval.fb = v; this.refreshPenteCalc(); } }));
-      card.appendChild(visAval);
-
-      const visAmont = this.grid();
-      visAmont.appendChild(this.field({ label: 'Amont — Fh (cm)', type: 'number', step: '0.1', value: tr.amont.fh, onChange: v => { tr.amont.fh = v; this.refreshPenteCalc(); } }));
-      visAmont.appendChild(this.field({ label: 'Amont — Fm (cm)', type: 'number', step: '0.1', value: tr.amont.fm, onChange: v => { tr.amont.fm = v; this.refreshPenteCalc(); } }));
-      visAmont.appendChild(this.field({ label: 'Amont — Fb (cm)', type: 'number', step: '0.1', value: tr.amont.fb, onChange: v => { tr.amont.fb = v; this.refreshPenteCalc(); } }));
-      card.appendChild(visAmont);
+      // Visées aval : Fh / Fm / Fb avec vérification de cohérence stadimétrique sur Fm
+      card.appendChild(this.buildStadimetricRow('Aval', tr.aval, () => this.refreshPenteCalc()));
+      card.appendChild(this.buildStadimetricRow('Amont', tr.amont, () => this.refreshPenteCalc()));
 
       // Delta H du tronçon
       const dh = (tr.aval.fm != null && tr.amont.fm != null) ? (tr.aval.fm - tr.amont.fm) / 100 : null;
@@ -751,6 +789,59 @@ const App = {
     });
     this.refreshPenteCalc();
   },
+
+  // Tolérance sur la cohérence stadimétrique : Fm doit être à ≤ 0.1 cm de (Fh+Fb)/2
+  // (modifiable ici si on veut être plus laxiste sur le terrain)
+  STADI_TOL_CM: 0.1,
+
+  // Construit une ligne de saisie d'une visée (Fh / Fm / Fb) avec vérif de cohérence
+  buildStadimetricRow(label, vis, onAfterChange) {
+    const row = this.grid();
+    const fields = {};
+    ['fh', 'fm', 'fb'].forEach(k => {
+      const wrap = document.createElement('div');
+      wrap.className = 'field';
+      const lbl = document.createElement('label');
+      lbl.textContent = `${label} — ${k.toUpperCase()} (cm)`;
+      wrap.appendChild(lbl);
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.inputMode = 'decimal';
+      inp.autocomplete = 'off';
+      inp.value = vis[k] == null ? '' : vis[k];
+      inp.addEventListener('input', () => {
+        vis[k] = parseNum(inp.value);
+        this.checkStadi(fields, vis);
+        if (onAfterChange) onAfterChange();
+        this.scheduleSave();
+      });
+      wrap.appendChild(inp);
+      const note = document.createElement('div');
+      note.className = 'field-note';
+      wrap.appendChild(note);
+      fields[k] = { input: inp, note };
+      row.appendChild(wrap);
+    });
+    // Vérif initiale
+    this.checkStadi(fields, vis);
+    return row;
+  },
+
+  checkStadi(fields, vis) {
+    fields.fm.input.classList.remove('error');
+    fields.fm.note.classList.remove('error');
+    fields.fm.note.textContent = '';
+    if (vis.fh != null && vis.fm != null && vis.fb != null) {
+      const moy = (vis.fh + vis.fb) / 2;
+      const ecart = Math.abs(vis.fm - moy);
+      if (ecart > this.STADI_TOL_CM) {
+        fields.fm.input.classList.add('error');
+        fields.fm.note.classList.add('error');
+        fields.fm.note.textContent = `Écart à (Fh+Fb)/2 = ${ecart.toFixed(2)} cm — vérifier la lecture`;
+      }
+    }
+  },
+
 
   refreshPenteCalc() {
     const op = this.state.op;
@@ -825,7 +916,11 @@ const App = {
         type: 'select',
         options: NOM.oui_non,
         value: c.actif ? 'Oui' : 'Non',
-        onChange: v => { c.actif = (v === 'Oui'); this.toast(c.actif ? 'Colmatage activé' : 'Colmatage désactivé'); }
+        onChange: v => {
+          c.actif = (v === 'Oui');
+          // Re-render immédiat pour faire apparaître / disparaître la suite sans délai
+          this.renderColmatage();
+        }
       }));
       g.appendChild(this.field({ label: 'Classe ARCHAMBAUD', value: c.classe_archambaud, onChange: v => c.classe_archambaud = v, placeholder: 'optionnel' }));
       body.appendChild(g);
@@ -847,57 +942,104 @@ const App = {
       root.appendChild(section);
     }
 
-    // Chaque radier
-    c.radiers.forEach((r, ri) => {
+    // Chaque radier : un seul encadré de coords + indice, puis une ligne par bâtonnet
+    c.radiers.forEach((r) => {
       const { section, body } = this.section(`Radier ${r.id}`);
+
+      // Encadré commun (coordonnées + indice de repérage)
       const meta = this.grid();
-      meta.appendChild(this.field({
+      meta.appendChild(this.field({ label: 'Latitude WGS84 (Dd)', type: 'number', value: r.lat, onChange: v => r.lat = v }));
+      meta.appendChild(this.field({ label: 'Longitude WGS84 (Dd)', type: 'number', value: r.lon, onChange: v => r.lon = v }));
+      meta.appendChild(this.field({ label: 'X L93 (m)', type: 'number', value: r.x_l93, onChange: v => r.x_l93 = v }));
+      meta.appendChild(this.field({ label: 'Y L93 (m)', type: 'number', value: r.y_l93, onChange: v => r.y_l93 = v }));
+      meta.appendChild(this.field({ label: 'Indice de repérage du radier', value: r.indice_position, onChange: v => r.indice_position = v, full: true, placeholder: 'ex. à 1,5 m sous bloc en RG' }));
+      meta.appendChild(this.field({ label: 'Remarques radier', value: r.remarques, onChange: v => r.remarques = v, full: true }));
+      body.appendChild(meta);
+
+      // Nombre de bâtonnets
+      const nb = this.grid();
+      nb.appendChild(this.field({
         label: 'Nb de bâtonnets posés',
-        type: 'number', step: '1',
+        type: 'number',
         value: r.nb_batonnets,
         onChange: v => {
-          r.nb_batonnets = v;
           const target = Math.max(1, Math.min(10, parseInt(v) || 4));
-          // Adapter le nombre de bâtonnets
+          r.nb_batonnets = target;
           while (r.batonnets.length < target) {
             const i = r.batonnets.length + 1;
-            r.batonnets.push({ code: r.id + i, lat: null, lon: null, x_l93: null, y_l93: null, indice_position: '', etat: '', profondeur_oxy_cm: null, remarques: '' });
+            r.batonnets.push({ code: r.id + i, etat: '', profondeur_oxy_cm: null });
           }
           while (r.batonnets.length > target) r.batonnets.pop();
           this.renderColmatage();
         }
       }));
-      body.appendChild(meta);
+      body.appendChild(nb);
 
-      r.batonnets.forEach((bat, bi) => {
-        const card = document.createElement('div');
-        card.className = 'batonnet-card';
-        const h = document.createElement('h5');
-        h.textContent = `Bâtonnet ${bat.code}`;
-        card.appendChild(h);
+      // Tableau compact des bâtonnets
+      const table = document.createElement('table');
+      table.className = 'points-table';
+      table.style.minWidth = '0';
+      const thead = document.createElement('thead');
+      thead.innerHTML = `
+        <tr>
+          <th>Bâtonnet</th>
+          <th>État</th>
+          <th>Profondeur d'oxygénation (cm)</th>
+        </tr>`;
+      table.appendChild(thead);
+      const tbody = document.createElement('tbody');
+      r.batonnets.forEach(b => {
+        const row = document.createElement('tr');
 
-        const pose = this.grid();
-        pose.appendChild(this.field({ label: 'Latitude WGS84 (Dd)', type: 'number', step: '0.000001', value: bat.lat, onChange: v => bat.lat = v }));
-        pose.appendChild(this.field({ label: 'Longitude WGS84 (Dd)', type: 'number', step: '0.000001', value: bat.lon, onChange: v => bat.lon = v }));
-        pose.appendChild(this.field({ label: 'X L93 (m)', type: 'number', value: bat.x_l93, onChange: v => bat.x_l93 = v }));
-        pose.appendChild(this.field({ label: 'Y L93 (m)', type: 'number', value: bat.y_l93, onChange: v => bat.y_l93 = v }));
-        pose.appendChild(this.field({ label: 'Indice pour retrouver le bâtonnet', value: bat.indice_position, onChange: v => bat.indice_position = v, full: true, placeholder: 'ex. à 1,5 m sous bloc en RG' }));
-        card.appendChild(pose);
+        const codeTd = document.createElement('td');
+        codeTd.className = 'col-num';
+        codeTd.textContent = b.code;
+        row.appendChild(codeTd);
 
-        const releve = this.grid();
-        releve.appendChild(this.field({ label: 'État', type: 'select', options: NOM.etat_batonnet, value: bat.etat, onChange: v => bat.etat = v }));
-        releve.appendChild(this.field({ label: 'Profondeur d\'oxygénation (cm)', type: 'number', step: '0.1', value: bat.profondeur_oxy_cm, onChange: v => bat.profondeur_oxy_cm = v }));
-        releve.appendChild(this.field({ label: 'Remarques', value: bat.remarques, onChange: v => bat.remarques = v, full: true }));
-        card.appendChild(releve);
+        // État
+        const etatTd = document.createElement('td');
+        const sel = document.createElement('select');
+        const blank = document.createElement('option'); blank.value = ''; blank.textContent = '—';
+        sel.appendChild(blank);
+        NOM.etat_batonnet.forEach(e => {
+          const o = document.createElement('option');
+          o.value = e; o.textContent = e;
+          sel.appendChild(o);
+        });
+        sel.value = b.etat || '';
+        sel.addEventListener('change', () => { b.etat = sel.value; this.scheduleSave(); });
+        etatTd.appendChild(sel);
+        row.appendChild(etatTd);
 
-        body.appendChild(card);
+        // Profondeur d'oxygénation
+        const oxyTd = document.createElement('td');
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.inputMode = 'decimal';
+        inp.autocomplete = 'off';
+        inp.value = b.profondeur_oxy_cm == null ? '' : b.profondeur_oxy_cm;
+        inp.addEventListener('input', () => {
+          b.profondeur_oxy_cm = parseNum(inp.value);
+          this.refreshColmatageStats();
+          this.scheduleSave();
+        });
+        oxyTd.appendChild(inp);
+        row.appendChild(oxyTd);
+
+        tbody.appendChild(row);
       });
+      table.appendChild(tbody);
 
-      // Synthèse radier
-      const oxyVals = r.batonnets.filter(b => b.profondeur_oxy_cm != null).map(b => +b.profondeur_oxy_cm);
-      const moy = oxyVals.length ? oxyVals.reduce((a,b)=>a+b, 0) / oxyVals.length : null;
-      const synth = this.grid();
-      synth.appendChild(this.calcField({ label: `Moyenne radier ${r.id} (cm)`, value: moy, unit: 'cm' }));
+      const wrap = document.createElement('div');
+      wrap.className = 'points-table-wrapper';
+      wrap.appendChild(table);
+      body.appendChild(wrap);
+
+      // Moyenne du radier — élément ciblé pour mise à jour en direct
+      const synth = document.createElement('div');
+      synth.className = 'calc-value';
+      synth.dataset.radierMean = r.id;
+      synth.style.marginTop = '0.5rem';
       body.appendChild(synth);
 
       root.appendChild(section);
@@ -906,16 +1048,41 @@ const App = {
     // Synthèse globale
     {
       const { section, body } = this.section('Synthèse globale');
-      const all = c.radiers.flatMap(r => r.batonnets).filter(b => b.profondeur_oxy_cm != null).map(b => +b.profondeur_oxy_cm);
-      const moy = all.length ? all.reduce((a,b)=>a+b,0)/all.length : null;
-      const sd = all.length ? Math.sqrt(all.reduce((s,v)=>s+(v-moy)**2,0)/all.length) : null;
-      const cv = (moy != null && moy !== 0 && sd != null) ? sd/moy : null;
-      const g = this.grid();
-      g.appendChild(this.calcField({ label: 'Moyenne globale (cm)', value: moy, unit: 'cm' }));
-      g.appendChild(this.calcField({ label: 'Coef. de variation', value: cv == null ? null : cv * 100, unit: '%' }));
-      body.appendChild(g);
+      const wrap = document.createElement('div');
+      wrap.id = 'colmatage-synth';
+      body.appendChild(wrap);
       root.appendChild(section);
     }
+
+    // Calcul initial des moyennes
+    this.refreshColmatageStats();
+  },
+
+  // Mise à jour en temps réel des moyennes de colmatage
+  refreshColmatageStats() {
+    const c = this.state.op.colmatage;
+    if (!c.actif) return;
+    // Moyenne par radier
+    c.radiers.forEach(r => {
+      const el = document.querySelector(`[data-radier-mean="${r.id}"]`);
+      if (!el) return;
+      const vals = r.batonnets.filter(b => b.profondeur_oxy_cm != null).map(b => +b.profondeur_oxy_cm);
+      const moy = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : null;
+      el.textContent = `Moyenne radier ${r.id} : ${moy == null ? '—' : moy.toFixed(2) + ' cm'} (${vals.length} bâtonnet${vals.length>1?'s':''} relevé${vals.length>1?'s':''})`;
+    });
+    // Synthèse globale
+    const synth = document.getElementById('colmatage-synth');
+    if (!synth) return;
+    synth.innerHTML = '';
+    const all = c.radiers.flatMap(r => r.batonnets).filter(b => b.profondeur_oxy_cm != null).map(b => +b.profondeur_oxy_cm);
+    const moy = all.length ? all.reduce((a,b)=>a+b,0)/all.length : null;
+    const sd = (all.length && moy != null) ? Math.sqrt(all.reduce((s,v)=>s+(v-moy)**2,0)/all.length) : null;
+    const cv = (moy != null && moy !== 0 && sd != null) ? sd/moy : null;
+    const g = this.grid();
+    g.appendChild(this.calcField({ label: 'Moyenne globale (cm)', value: moy, unit: 'cm' }));
+    g.appendChild(this.calcField({ label: 'Écart-type (cm)', value: sd, unit: 'cm' }));
+    g.appendChild(this.calcField({ label: 'Coef. de variation', value: cv == null ? null : cv * 100, unit: '%' }));
+    synth.appendChild(g);
   },
 
   // ============================================================
@@ -935,7 +1102,7 @@ const App = {
       info.className = 't-info';
       const npts = tr.points.length;
       const status = !tr.actif ? 'désactivé'
-        : (npts > 0 && tr.lpb_m && tr.hpb_m) ? 'complet'
+        : this.isTransectComplete(tr) ? 'complet'
         : (npts > 0 || tr.lpb_m) ? 'partiel'
         : 'à saisir';
       info.innerHTML = `<strong>${tr.facies_affine || tr.facies_simplifie || '—'}</strong><br><small>${npts} points · Lpb=${tr.lpb_m ?? '—'} m</small>`;
@@ -978,6 +1145,11 @@ const App = {
   openTransectEdit(idx) {
     this.state.currentTransect = idx;
     const tr = this.state.op.transects[idx];
+    // Hériter automatiquement la distance inter-points appliquée de la station si non saisie au transect
+    if (tr.distance_interpoints_appliquee_m == null) {
+      const stD = this.state.op.station.distance_interpoints_appliquee_m;
+      if (stD != null) tr.distance_interpoints_appliquee_m = stD;
+    }
     document.getElementById('transect-edit-title').textContent = `Transect T${tr.numero}`;
     this.renderTransect();
     this.showScreen('transect-edit');
@@ -994,16 +1166,24 @@ const App = {
       const { section, body } = this.section('Caractéristiques du transect');
       const g = this.grid();
       g.appendChild(this.field({ label: 'Rive de départ', type: 'select', options: NOM.rive, value: tr.rive_depart, onChange: v => tr.rive_depart = v, note: 'Rive où débute la mesure' }));
-      g.appendChild(this.field({ label: 'Lpb — Largeur plein bord (m)', type: 'number', step: '0.01', value: tr.lpb_m, onChange: v => { tr.lpb_m = v; this.refreshTransectCalc(); } }));
-      g.appendChild(this.field({ label: 'Lm — Largeur mouillée (m)', type: 'number', step: '0.01', value: tr.lm_m, onChange: v => { tr.lm_m = v; this.refreshTransectCalc(); } }));
-      g.appendChild(this.field({ label: 'Hpb — Hauteur plein bord (m)', type: 'number', step: '0.01', value: tr.hpb_m, onChange: v => { tr.hpb_m = v; this.refreshTransectCalc(); } }));
-      g.appendChild(this.field({ label: 'Distance inter-points appliquée (m)', type: 'number', step: '0.01', value: tr.distance_interpoints_appliquee_m, onChange: v => tr.distance_interpoints_appliquee_m = v, note: 'Souvent identique à celle de la station' }));
+      g.appendChild(this.field({ label: 'Lpb — Largeur plein bord (m)', type: 'number', value: tr.lpb_m, onChange: v => { tr.lpb_m = v; this.refreshTransectCalc(); } }));
+      g.appendChild(this.field({ label: 'Lm — Largeur mouillée (m)', type: 'number', value: tr.lm_m, onChange: v => { tr.lm_m = v; this.refreshTransectCalc(); } }));
+      g.appendChild(this.field({ label: 'Hpb — Hauteur plein bord (m)', type: 'number', value: tr.hpb_m, onChange: v => { tr.hpb_m = v; this.refreshTransectCalc(); } }));
       body.appendChild(g);
 
-      const peauDiv = document.createElement('div');
-      peauDiv.id = 'peau-calc';
-      peauDiv.style.marginTop = '0.4rem';
-      body.appendChild(peauDiv);
+      // Distance inter-points appliquée + Peau sur la même ligne
+      const distPeauRow = this.grid();
+      distPeauRow.appendChild(this.field({
+        label: 'Distance inter-points appliquée (m)',
+        type: 'number',
+        value: tr.distance_interpoints_appliquee_m,
+        onChange: v => tr.distance_interpoints_appliquee_m = v,
+        note: 'Reprise auto depuis l\'onglet Station',
+      }));
+      const peauWrap = document.createElement('div');
+      peauWrap.id = 'peau-calc';
+      distPeauRow.appendChild(peauWrap);
+      body.appendChild(distPeauRow);
 
       const g2 = this.grid();
       g2.appendChild(this.field({ label: 'Modification du transect', type: 'select', options: NOM.modification_transect, value: tr.modification.type, onChange: v => tr.modification.type = v }));
@@ -1027,7 +1207,7 @@ const App = {
         tr.points.push({
           distance_m: (lastDist != null ? +lastDist : 0) + step,
           profondeur_cm: null,
-          substrat_min: '',
+          substrat_min: 'TV',
           substrat_add_1: '',
           substrat_add_2: '',
         });
@@ -1037,8 +1217,8 @@ const App = {
       tools.appendChild(addBtn);
 
       const seedBtn = document.createElement('button');
-      seedBtn.textContent = '⚡ Pré-remplir Lpb';
-      seedBtn.title = 'Crée des points à intervalle régulier sur la largeur plein bord';
+      seedBtn.textContent = '⚡ Pré-remplir';
+      seedBtn.title = 'Crée des points à intervalle régulier sur la largeur plein bord, avec le premier point à -Hpb';
       seedBtn.addEventListener('click', () => {
         if (!tr.lpb_m) { alert('Saisir d\'abord Lpb.'); return; }
         const step = tr.distance_interpoints_appliquee_m || this.state.op.station.distance_interpoints_appliquee_m;
@@ -1046,9 +1226,20 @@ const App = {
         if (tr.points.length > 0 && !confirm('Remplacer les points existants ?')) return;
         tr.points = [];
         let d = 0;
+        let first = true;
         while (d <= tr.lpb_m + 1e-6) {
-          tr.points.push({ distance_m: +d.toFixed(2), profondeur_cm: null, substrat_min: '', substrat_add_1: '', substrat_add_2: '' });
+          // Premier point : profondeur = -Hpb (haut de berge au-dessus de la ligne d'eau)
+          let prof = null;
+          if (first && tr.hpb_m != null) prof = -tr.hpb_m * 100;
+          tr.points.push({
+            distance_m: +d.toFixed(2),
+            profondeur_cm: prof,
+            substrat_min: 'TV',
+            substrat_add_1: '',
+            substrat_add_2: '',
+          });
           d += step;
+          first = false;
         }
         this.renderTransect();
         this.scheduleSave();
@@ -1097,10 +1288,10 @@ const App = {
         const distTd = document.createElement('td');
         distTd.className = 'col-dist';
         const dInp = document.createElement('input');
-        dInp.type = 'number'; dInp.step = '0.01'; dInp.inputMode = 'decimal';
+        dInp.type = 'text'; dInp.inputMode = 'decimal'; dInp.autocomplete = 'off';
         dInp.value = pt.distance_m == null ? '' : pt.distance_m;
         dInp.addEventListener('input', () => {
-          pt.distance_m = dInp.value === '' ? null : parseFloat(dInp.value);
+          pt.distance_m = parseNum(dInp.value);
           this.refreshProfileChart();
           this.scheduleSave();
         });
@@ -1111,10 +1302,10 @@ const App = {
         const profTd = document.createElement('td');
         profTd.className = 'col-prof';
         const pInp = document.createElement('input');
-        pInp.type = 'number'; pInp.step = '0.1'; pInp.inputMode = 'decimal';
+        pInp.type = 'text'; pInp.inputMode = 'decimal'; pInp.autocomplete = 'off';
         pInp.value = pt.profondeur_cm == null ? '' : pt.profondeur_cm;
         pInp.addEventListener('input', () => {
-          pt.profondeur_cm = pInp.value === '' ? null : parseFloat(pInp.value);
+          pt.profondeur_cm = parseNum(pInp.value);
           this.refreshProfileChart();
           this.refreshTransectCalc();
           this.scheduleSave();
@@ -1122,17 +1313,17 @@ const App = {
         profTd.appendChild(pInp);
         row.appendChild(profTd);
 
-        // Substrat principal
+        // Substrat principal (pas de blank possible : valeur par défaut TV)
         const sTd = document.createElement('td');
         const sSel = document.createElement('select');
-        const sBlank = document.createElement('option'); sBlank.value=''; sBlank.textContent='—';
-        sSel.appendChild(sBlank);
         NOM.substrats_mineraux.forEach(s => {
           const o = document.createElement('option');
           o.value = s.code; o.textContent = `${s.code} — ${s.libelle}`;
           sSel.appendChild(o);
         });
-        sSel.value = pt.substrat_min || '';
+        // Si pas de valeur ou vide, on force TV
+        if (!pt.substrat_min) pt.substrat_min = 'TV';
+        sSel.value = pt.substrat_min;
         sSel.addEventListener('change', () => { pt.substrat_min = sSel.value; this.scheduleSave(); });
         sTd.appendChild(sSel);
         row.appendChild(sTd);
@@ -1224,13 +1415,16 @@ const App = {
         sub.appendChild(h);
         const g = this.grid();
         g.appendChild(this.field({
-          label: 'Présente ?',
+          label: 'Épaisseur',
           type: 'select',
-          options: NOM.oui_non,
-          value: data.presente ? 'Oui' : 'Non',
-          onChange: v => data.presente = (v === 'Oui')
+          options: NOM.epaisseur_strate,
+          value: data.epaisseur,
+          onChange: v => {
+            data.epaisseur = v;
+            // "Présente" est dérivé de l'épaisseur : Absente ou vide → non présente, sinon présente
+            data.presente = !!(v && v !== 'Absente');
+          }
         }));
-        g.appendChild(this.field({ label: 'Épaisseur', type: 'select', options: NOM.epaisseur_strate, value: data.epaisseur, onChange: v => data.epaisseur = v }));
         g.appendChild(this.field({ label: 'Type de végétation', type: 'select', options: NOM.type_vegetation, value: data.type, onChange: v => data.type = v }));
         sub.appendChild(g);
         body.appendChild(sub);
@@ -1275,22 +1469,17 @@ const App = {
   refreshTransectCalc() {
     const tr = this.state.op.transects[this.state.currentTransect];
     if (!tr) return;
-    // Peau = moyenne des profondeurs > 0
+    // Peau = moyenne des profondeurs > 0 (points sous l'eau)
     const profs = tr.points.filter(p => p.profondeur_cm != null && p.profondeur_cm > 0).map(p => p.profondeur_cm / 100);
     const peau = profs.length ? profs.reduce((a,b)=>a+b,0)/profs.length : null;
     const el = document.getElementById('peau-calc');
     if (el) {
       el.innerHTML = '';
-      const g = this.grid();
-      g.appendChild(this.calcField({ label: 'Peau — Profondeur d\'eau moyenne (m)', value: peau, unit: 'm', note: 'Moyenne des profondeurs > 0' }));
-      // Ratios
-      if (tr.lpb_m && tr.hpb_m) {
-        g.appendChild(this.calcField({ label: 'Lpb / Hpb', value: tr.lpb_m / tr.hpb_m, unit: '', note: 'Indicateur géodynamique' }));
-      }
-      if (tr.lm_m && peau != null && peau > 0) {
-        g.appendChild(this.calcField({ label: 'Lm / Peau', value: tr.lm_m / peau, unit: '' }));
-      }
-      el.appendChild(g);
+      // calcField encapsulé pour s'intégrer dans la grille
+      const cf = this.calcField({ label: 'Peau — Profondeur d\'eau moyenne (m)', value: peau, unit: 'm', note: 'Moyenne des profondeurs > 0' });
+      // On reproduit la structure interne d'un .field pour rester aligné avec la distance inter-points
+      el.className = cf.className;
+      while (cf.firstChild) el.appendChild(cf.firstChild);
     }
   },
 
@@ -1305,7 +1494,8 @@ const App = {
 
     const pts = tr.points
       .filter(p => p.distance_m != null && p.profondeur_cm != null)
-      .map(p => ({ x: +p.distance_m, y: -p.profondeur_cm / 100 }))  // y en m : profondeur négative = au-dessus de la ligne d'eau
+      .map(p => ({ x: +p.distance_m, y: -p.profondeur_cm / 100 }))
+      // y en m, signé : profondeur saisie positive (sous l'eau) → y < 0 ; profondeur saisie négative (au-dessus de l'eau) → y > 0
       .sort((a,b) => a.x - b.x);
 
     if (pts.length < 2) {
@@ -1322,15 +1512,10 @@ const App = {
     const innerW = W - pad.l - pad.r;
     const innerH = H - pad.t - pad.b;
 
-    const xMin = Math.min(...pts.map(p => p.x));
-    const xMax = Math.max(...pts.map(p => p.x));
-    const xPad = (xMax - xMin) * 0.02 || 0.5;
-    const x0 = xMin - xPad, x1 = xMax + xPad;
+    // X : on force le début à 0 (premier point = rive de départ, distance = 0)
+    const xMax = Math.max(...pts.map(p => p.x), 0);
+    const x0 = 0, x1 = xMax + (xMax * 0.02 || 0.5);
 
-    // Y : ligne d'eau = 0 ; profondeur négative en cm dans pt → ici on a déjà signé y
-    // profondeur saisie positive = en eau (y > 0 en m descendant) ; on veut l'eau VERS LE BAS
-    // On a fait y = -profondeur_cm/100 ; donc profondeur positive => y < 0 (vers le bas)
-    // On affichera y croissant vers le bas → inversion sur le SVG
     const yMin = Math.min(...pts.map(p => p.y), 0);
     const yMax = Math.max(...pts.map(p => p.y), 0);
     const yPad = (yMax - yMin) * 0.1 || 0.2;
@@ -1342,6 +1527,15 @@ const App = {
     const svgNS = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(svgNS, 'svg');
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+    // Clip-paths : sépare la zone sous la ligne d'eau (bleu) de la zone hors d'eau (marron)
+    const ySurface = yScale(0);
+    const defs = document.createElementNS(svgNS, 'defs');
+    defs.innerHTML = `
+      <clipPath id="clip-eau"><rect x="${pad.l}" y="${ySurface}" width="${innerW}" height="${Math.max(0, H - pad.b - ySurface)}"/></clipPath>
+      <clipPath id="clip-air"><rect x="${pad.l}" y="${pad.t}" width="${innerW}" height="${Math.max(0, ySurface - pad.t)}"/></clipPath>
+    `;
+    svg.appendChild(defs);
 
     // Grille horizontale
     for (let i = 0; i <= 4; i++) {
@@ -1377,7 +1571,6 @@ const App = {
       txt.textContent = xv.toFixed(1);
       svg.appendChild(txt);
     }
-    // Légende X
     const xLab = document.createElementNS(svgNS, 'text');
     xLab.setAttribute('x', (W - pad.r + pad.l)/2);
     xLab.setAttribute('y', H - 4);
@@ -1386,19 +1579,27 @@ const App = {
     xLab.textContent = `Distance depuis la rive ${tr.rive_depart || ''} (m)`;
     svg.appendChild(xLab);
 
-    // Surface d'eau (polygone fermé)
-    // Trace la zone entre y=0 et le profil pour les points sous l'eau (y < 0)
-    const ySurface = yScale(0);
+    // Polygone fermé entre profil et ligne d'eau (y=0)
     let pathSurface = '';
     pts.forEach((p, i) => {
       pathSurface += (i === 0 ? 'M' : 'L') + xScale(p.x) + ' ' + yScale(p.y);
     });
     const lastX = xScale(pts[pts.length-1].x), firstX = xScale(pts[0].x);
     pathSurface += ` L${lastX} ${ySurface} L${firstX} ${ySurface} Z`;
-    const surf = document.createElementNS(svgNS, 'path');
-    surf.setAttribute('d', pathSurface);
-    surf.setAttribute('class', 'surf-eau');
-    svg.appendChild(surf);
+
+    // Remplissage marron pour la partie hors d'eau (au-dessus de la ligne d'eau)
+    const surfAir = document.createElementNS(svgNS, 'path');
+    surfAir.setAttribute('d', pathSurface);
+    surfAir.setAttribute('class', 'surf-air');
+    surfAir.setAttribute('clip-path', 'url(#clip-air)');
+    svg.appendChild(surfAir);
+
+    // Remplissage bleu pour la partie en eau (sous la ligne d'eau)
+    const surfEau = document.createElementNS(svgNS, 'path');
+    surfEau.setAttribute('d', pathSurface);
+    surfEau.setAttribute('class', 'surf-eau');
+    surfEau.setAttribute('clip-path', 'url(#clip-eau)');
+    svg.appendChild(surfEau);
 
     // Ligne du profil
     const profile = document.createElementNS(svgNS, 'path');
@@ -1410,19 +1611,12 @@ const App = {
     profile.setAttribute('class', 'line-eau');
     svg.appendChild(profile);
 
-    // Ligne d'eau
+    // Ligne d'eau (sans étiquette)
     const eau = document.createElementNS(svgNS, 'line');
     eau.setAttribute('x1', pad.l); eau.setAttribute('x2', W - pad.r);
     eau.setAttribute('y1', ySurface); eau.setAttribute('y2', ySurface);
     eau.setAttribute('class', 'line-eau-niveau');
     svg.appendChild(eau);
-    const eauLab = document.createElementNS(svgNS, 'text');
-    eauLab.setAttribute('x', W - pad.r - 4);
-    eauLab.setAttribute('y', ySurface - 4);
-    eauLab.setAttribute('text-anchor', 'end');
-    eauLab.setAttribute('class', 'label');
-    eauLab.textContent = 'ligne d\'eau';
-    svg.appendChild(eauLab);
 
     // Points
     pts.forEach(p => {

@@ -346,9 +346,49 @@ button:disabled {
   min-height: 70px;
 }
 
-.field input[type="number"] {
+.field input[type="number"],
+.field input[inputmode="decimal"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+  -webkit-appearance: none;
+}
+.field input[type="number"]::-webkit-outer-spin-button,
+.field input[type="number"]::-webkit-inner-spin-button,
+.field input[inputmode="decimal"]::-webkit-outer-spin-button,
+.field input[inputmode="decimal"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.points-table input,
+.granulo-cell input,
+.troncon-card input {
+  -moz-appearance: textfield;
+  -webkit-appearance: none;
   appearance: textfield;
 }
+.points-table input::-webkit-outer-spin-button,
+.points-table input::-webkit-inner-spin-button,
+.granulo-cell input::-webkit-outer-spin-button,
+.granulo-cell input::-webkit-inner-spin-button,
+.troncon-card input::-webkit-outer-spin-button,
+.troncon-card input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Champ en erreur (utilisé pour signaler une incohérence de saisie) */
+.field input.error,
+.troncon-card input.error {
+  border-color: var(--danger);
+  background: #fdecea;
+  color: var(--danger);
+  font-weight: 600;
+}
+.field-note.error {
+  color: var(--danger);
+  font-weight: 500;
+}
+
 .field input[readonly] {
   background: #f0f3f6;
   color: var(--text-muted);
@@ -499,10 +539,10 @@ button:disabled {
 .profile-chart .axis { stroke: #999; stroke-width: 1; }
 .profile-chart .grid { stroke: #e0e6ec; stroke-width: 0.5; }
 .profile-chart .line-eau { stroke: #2b8cd6; stroke-width: 2; fill: none; }
-.profile-chart .surf-eau { fill: rgba(43, 140, 214, 0.18); }
-.profile-chart .surf-air { fill: rgba(180,180,180,0.10); }
+.profile-chart .surf-eau { fill: rgba(43, 140, 214, 0.25); }
+.profile-chart .surf-air { fill: rgba(150, 95, 35, 0.30); }
 .profile-chart .pt { fill: var(--primary-dk); }
-.profile-chart .pt-air { fill: #999; }
+.profile-chart .pt-air { fill: #8b5a2b; }
 .profile-chart .line-eau-niveau { stroke: #1f6fa8; stroke-width: 1.3; stroke-dasharray: 4 3; }
 .profile-chart .label { font-size: 10px; fill: var(--text-muted); }
 
