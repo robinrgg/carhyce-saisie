@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#1e4f7a">
+  <meta name="description" content="Saisie de terrain pour le protocole CARHYCE (hydromorphologie des cours d'eau)">
+  <title>CARHYCE — Saisie terrain</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <header class="app-header">
+    <button id="btn-menu" class="header-btn" aria-label="Menu" title="Retour à l'accueil">☰</button>
+    <h1 id="app-title">CARHYCE</h1>
+    <span id="save-indicator" class="save-indicator" aria-live="polite"></span>
+  </header>
+
+  <main id="app-main">
+
+    <!-- ÉCRAN ACCUEIL : liste des opérations -->
+    <section id="screen-home" class="screen active">
+      <div class="card-action">
+        <button id="btn-new-op" class="primary-btn">＋ Nouvelle opération</button>
+        <button id="btn-import" class="secondary-btn">⤓ Importer un JSON</button>
+        <input type="file" id="file-import" accept=".json" hidden>
+      </div>
+      <h2>Opérations enregistrées</h2>
+      <ul id="op-list" class="op-list"></ul>
+      <p id="op-list-empty" class="muted" hidden>Aucune opération enregistrée pour le moment.</p>
+      <p class="footer-note muted small">
+        Données stockées localement dans le navigateur. Pensez à exporter régulièrement (JSON) pour ne rien perdre en cas de changement d'appareil.
+      </p>
+    </section>
+
+    <!-- ÉCRAN OPÉRATION : sommaire d'une opération -->
+    <section id="screen-op" class="screen">
+      <h2 id="op-title">Opération</h2>
+      <p id="op-subtitle" class="muted small"></p>
+      <div class="nav-grid">
+        <button data-go="station"    class="nav-card"><span class="nav-icon">📍</span>Station<small id="prog-station"></small></button>
+        <button data-go="granulo"    class="nav-card"><span class="nav-icon">🪨</span>Granulométrie<small id="prog-granulo"></small></button>
+        <button data-go="pente"      class="nav-card"><span class="nav-icon">📐</span>Pente<small id="prog-pente"></small></button>
+        <button data-go="colmatage"  class="nav-card"><span class="nav-icon">💧</span>Colmatage<small id="prog-colmatage"></small></button>
+        <button data-go="transects"  class="nav-card"><span class="nav-icon">📏</span>Transects<small id="prog-transects"></small></button>
+        <button data-go="export"     class="nav-card"><span class="nav-icon">📤</span>Export<small></small></button>
+      </div>
+      <div class="card-action">
+        <button id="btn-delete-op" class="danger-btn">🗑 Supprimer cette opération</button>
+      </div>
+    </section>
+
+    <!-- ÉCRAN STATION -->
+    <section id="screen-station" class="screen">
+      <h2>Station</h2>
+      <div id="form-station"></div>
+    </section>
+
+    <!-- ÉCRAN GRANULOMÉTRIE -->
+    <section id="screen-granulo" class="screen">
+      <h2>Granulométrie (Wolman)</h2>
+      <div id="form-granulo"></div>
+    </section>
+
+    <!-- ÉCRAN PENTE -->
+    <section id="screen-pente" class="screen">
+      <h2>Pente de la ligne d'eau</h2>
+      <div id="form-pente"></div>
+    </section>
+
+    <!-- ÉCRAN COLMATAGE -->
+    <section id="screen-colmatage" class="screen">
+      <h2>Colmatage</h2>
+      <div id="form-colmatage"></div>
+    </section>
+
+    <!-- ÉCRAN LISTE TRANSECTS -->
+    <section id="screen-transects" class="screen">
+      <h2>Transects</h2>
+      <p class="muted small">15 transects sont actifs par défaut (T1 à T15). Vous pouvez activer T16 à T18 si la station l'impose.</p>
+      <ul id="transect-list" class="transect-list"></ul>
+    </section>
+
+    <!-- ÉCRAN ÉDITION TRANSECT -->
+    <section id="screen-transect-edit" class="screen">
+      <h2 id="transect-edit-title">Transect</h2>
+      <div id="form-transect"></div>
+    </section>
+
+    <!-- ÉCRAN EXPORT -->
+    <section id="screen-export" class="screen">
+      <h2>Export</h2>
+      <p class="muted">Les données sont sauvegardées en local. Exporter régulièrement pour archivage ou pour traitement.</p>
+      <div class="card-action">
+        <button id="btn-export-json" class="primary-btn">⬇ Exporter en JSON</button>
+        <button id="btn-export-xlsx" class="primary-btn">⬇ Exporter en Excel (.xlsx)</button>
+      </div>
+      <h3>Aperçu du JSON</h3>
+      <pre id="json-preview" class="json-preview"></pre>
+    </section>
+
+  </main>
+
+  <!-- Toast de notification -->
+  <div id="toast" class="toast" hidden></div>
+
+  <!-- Chargement de SheetJS pour l'export Excel (mis en cache par le SW) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
+
+  <script src="nomenclatures.js" defer></script>
+  <script src="db.js" defer></script>
+  <script src="export.js" defer></script>
+  <script src="app.js" defer></script>
+</body>
+</html>

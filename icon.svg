@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#1e4f7a"/>
+  <!-- profil en travers stylisé -->
+  <path d="M 60 320 L 130 220 L 200 270 L 280 200 L 360 260 L 432 230 L 452 230 L 452 380 L 60 380 Z"
+        fill="#0d8a6e" opacity="0.22"/>
+  <path d="M 60 320 L 130 220 L 200 270 L 280 200 L 360 260 L 432 230"
+        fill="none" stroke="#ffffff" stroke-width="9" stroke-linejoin="round" stroke-linecap="round"/>
+  <!-- ligne d'eau -->
+  <line x1="60" y1="230" x2="452" y2="230" stroke="#9ecdee" stroke-width="6" stroke-dasharray="14 10"/>
+  <!-- points de mesure -->
+  <circle cx="130" cy="220" r="10" fill="#ffffff"/>
+  <circle cx="200" cy="270" r="10" fill="#ffffff"/>
+  <circle cx="280" cy="200" r="10" fill="#ffffff"/>
+  <circle cx="360" cy="260" r="10" fill="#ffffff"/>
+  <!-- texte CARHYCE -->
+  <text x="256" y="450" text-anchor="middle" font-family="Arial, sans-serif" font-size="56" font-weight="700" fill="#ffffff" letter-spacing="2">CARHYCE</text>
+</svg>

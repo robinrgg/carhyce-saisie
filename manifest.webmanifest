@@ -1,0 +1,20 @@
+{
+  "name": "CARHYCE - Saisie terrain",
+  "short_name": "CARHYCE",
+  "description": "Application de saisie pour le protocole CARHYCE (hydromorphologie des cours d'eau)",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f6f8",
+  "theme_color": "#1e4f7a",
+  "orientation": "portrait",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
