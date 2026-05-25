@@ -26,8 +26,40 @@ const App = {
     this.bindHome();
     this.bindOperationScreen();
     this.bindExport();
+    this.bindBackButton();
     await this.showHome();
     this.registerSW();
+  },
+
+  // Intercepte le bouton retour du téléphone (Android) ou le geste retour
+  // (iOS) pour qu'il déclenche le retour interne de l'app plutôt que de
+  // fermer l'application. Mécanisme : on pousse un état dans l'historique
+  // au démarrage, et chaque popstate est traité comme un clic sur btn-back
+  // sauf si on est déjà à l'accueil (auquel cas l'app peut être fermée).
+  bindBackButton() {
+    // Marqueur initial dans l'historique
+    window.history.replaceState({ carhyce: 'home' }, '');
+    window.history.pushState({ carhyce: 'guard' }, '');
+
+    window.addEventListener('popstate', () => {
+      const s = this.state.screen;
+      if (s === 'home') {
+        // À l'accueil : on laisse le retour fermer l'app au prochain appui,
+        // mais on remet un garde-fou pour éviter une fermeture accidentelle
+        // si l'utilisateur revient
+        window.history.pushState({ carhyce: 'guard' }, '');
+        return;
+      }
+      window.history.pushState({ carhyce: 'guard' }, '');
+      if (s === 'op') {
+        // Sommaire opération : on remonte directement à l'accueil
+        this.showHome();
+        return;
+      }
+      // Tous les autres écrans : simuler un retour interne (btn-back)
+      const back = document.getElementById('btn-back');
+      if (back && !back.hidden) back.click();
+    });
   },
 
   registerSW() {
@@ -1326,19 +1358,60 @@ const App = {
         distTd.appendChild(dInp);
         row.appendChild(distTd);
 
-        // Profondeur
+        // Profondeur — bouton ± à gauche pour inverser le signe
+        // (les claviers numériques mobiles n'affichent pas toujours le -)
         const profTd = document.createElement('td');
         profTd.className = 'col-prof';
+        const profWrap = document.createElement('div');
+        profWrap.style.display = 'flex';
+        profWrap.style.gap = '2px';
+        profWrap.style.alignItems = 'stretch';
+
+        const signBtn = document.createElement('button');
+        signBtn.type = 'button';
+        signBtn.textContent = '±';
+        signBtn.title = 'Inverser le signe (positif ↔ négatif)';
+        signBtn.style.padding = '0';
+        signBtn.style.width = '28px';
+        signBtn.style.minHeight = '36px';
+        signBtn.style.fontSize = '1rem';
+        signBtn.style.fontWeight = '700';
+        signBtn.style.background = '#eef3f8';
+        signBtn.style.border = '1px solid var(--border-dark)';
+        signBtn.style.borderRadius = '4px';
+        signBtn.style.cursor = 'pointer';
+        signBtn.style.color = 'var(--primary-dk)';
+        signBtn.style.flex = '0 0 28px';
+
         const pInp = document.createElement('input');
         pInp.type = 'text'; pInp.inputMode = 'decimal'; pInp.autocomplete = 'off';
         pInp.value = pt.profondeur_cm == null ? '' : pt.profondeur_cm;
+        pInp.style.flex = '1';
         pInp.addEventListener('input', () => {
           pt.profondeur_cm = parseNum(pInp.value);
           this.refreshProfileChart();
           this.refreshTransectCalc();
           this.scheduleSave();
         });
-        profTd.appendChild(pInp);
+
+        signBtn.addEventListener('click', () => {
+          // Si pas de valeur : on prépare une saisie négative
+          if (pt.profondeur_cm == null) {
+            pInp.value = '-';
+            pInp.focus();
+            return;
+          }
+          // Sinon on inverse le signe
+          pt.profondeur_cm = -pt.profondeur_cm;
+          pInp.value = pt.profondeur_cm;
+          this.refreshProfileChart();
+          this.refreshTransectCalc();
+          this.scheduleSave();
+        });
+
+        profWrap.appendChild(signBtn);
+        profWrap.appendChild(pInp);
+        profTd.appendChild(profWrap);
         row.appendChild(profTd);
 
         // Substrat principal
