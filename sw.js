@@ -13,7 +13,7 @@
      fermer/rouvrir l'app.
    ============================================================ */
 
-const CACHE_VERSION = 'carhyce-v4';
+const CACHE_VERSION = 'carhyce-v5';
 const NETWORK_TIMEOUT_MS = 3000;
 
 const PRECACHE_URLS = [

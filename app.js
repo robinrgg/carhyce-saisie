@@ -1352,7 +1352,7 @@ const App = {
         // pour le premier point.
         const optTiret = document.createElement('option');
         optTiret.value = '-';
-        optTiret.textContent = '— (hors d\'eau)';
+        optTiret.textContent = '-';
         sSel.appendChild(optTiret);
         NOM.substrats_mineraux.forEach(s => {
           const o = document.createElement('option');
