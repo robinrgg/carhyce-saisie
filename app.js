@@ -1224,10 +1224,13 @@ const App = {
       addBtn.addEventListener('click', () => {
         const lastDist = tr.points.length ? tr.points[tr.points.length - 1].distance_m : 0;
         const step = tr.distance_interpoints_appliquee_m || this.state.op.station.distance_interpoints_appliquee_m || 1;
+        // Premier point (transect vide) : distance = 0, substrat verrouillé à "-"
+        // Points suivants : substrat par défaut TV (modifiable)
+        const estPremier = tr.points.length === 0;
         tr.points.push({
-          distance_m: (lastDist != null ? +lastDist : 0) + step,
-          profondeur_cm: null,
-          substrat_min: 'TV',
+          distance_m: estPremier ? 0 : (lastDist != null ? +lastDist : 0) + step,
+          profondeur_cm: estPremier && tr.hpb_m != null ? -tr.hpb_m * 100 : null,
+          substrat_min: estPremier ? '-' : 'TV',
           substrat_add_1: '',
           substrat_add_2: '',
         });
@@ -1248,13 +1251,18 @@ const App = {
         let d = 0;
         let first = true;
         while (d <= tr.lpb_m + 1e-6) {
-          // Premier point : profondeur = -Hpb (haut de berge au-dessus de la ligne d'eau)
+          // Premier point : profondeur = -Hpb (haut de berge), substrat verrouillé à "-"
+          // (pas de substrat applicable hors d'eau)
           let prof = null;
-          if (first && tr.hpb_m != null) prof = -tr.hpb_m * 100;
+          let substr = 'TV';
+          if (first) {
+            if (tr.hpb_m != null) prof = -tr.hpb_m * 100;
+            substr = '-';
+          }
           tr.points.push({
             distance_m: +d.toFixed(2),
             profondeur_cm: prof,
-            substrat_min: 'TV',
+            substrat_min: substr,
             substrat_add_1: '',
             substrat_add_2: '',
           });
@@ -1333,18 +1341,34 @@ const App = {
         profTd.appendChild(pInp);
         row.appendChild(profTd);
 
-        // Substrat principal (pas de blank possible : valeur par défaut TV)
+        // Substrat principal
+        // - Pour le premier point du transect (distance = 0, sur la berge) :
+        //   pas de substrat applicable, on force "-" et on verrouille la cellule.
+        // - Pour les autres points : valeur par défaut TV, modifiable librement.
+        const estPremierPoint = (i === 0);
         const sTd = document.createElement('td');
         const sSel = document.createElement('select');
+        // On ajoute toujours l'option "-" en tête, et c'est la seule possible
+        // pour le premier point.
+        const optTiret = document.createElement('option');
+        optTiret.value = '-';
+        optTiret.textContent = '— (hors d\'eau)';
+        sSel.appendChild(optTiret);
         NOM.substrats_mineraux.forEach(s => {
           const o = document.createElement('option');
           o.value = s.code; o.textContent = `${s.code} — ${s.libelle}`;
           sSel.appendChild(o);
         });
-        // Si pas de valeur ou vide, on force TV
-        if (!pt.substrat_min) pt.substrat_min = 'TV';
-        sSel.value = pt.substrat_min;
-        sSel.addEventListener('change', () => { pt.substrat_min = sSel.value; this.scheduleSave(); });
+        if (estPremierPoint) {
+          pt.substrat_min = '-';
+          sSel.value = '-';
+          sSel.disabled = true;
+          sSel.title = 'Le premier point est sur la berge : pas de substrat applicable';
+        } else {
+          if (!pt.substrat_min || pt.substrat_min === '-') pt.substrat_min = 'TV';
+          sSel.value = pt.substrat_min;
+          sSel.addEventListener('change', () => { pt.substrat_min = sSel.value; this.scheduleSave(); });
+        }
         sTd.appendChild(sSel);
         row.appendChild(sTd);
 
