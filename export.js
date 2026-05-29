@@ -6,10 +6,17 @@ const Exporter = {
 
   filenameSafe(op) {
     const st = op.station;
-    const code = (st.code || '').replace(/[^a-zA-Z0-9_-]/g, '');
-    const lib = (st.libelle || '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40);
+    // Slugification : retire les accents puis remplace tout ce qui n'est pas
+    // alphanumérique par un seul _, et fusionne les _ multiples.
+    const slug = (s) => (s || '')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')   // retire accents
+      .replace(/[^a-zA-Z0-9]+/g, '_')                       // groupes non-alphanum -> _
+      .replace(/^_+|_+$/g, '');                              // trim _
+    const code = slug(st.code);
+    const lib  = slug((st.libelle || '').slice(0, 60));
     const date = (st.date || '').replace(/-/g, '');
-    return ['CARHYCE', code || 'station', lib || 'op', date || ''].filter(Boolean).join('_');
+    // Format : CARHYCE_<libelle>_<date>  (ou avec code si pas de libelle)
+    return ['CARHYCE', lib || code || 'op', date].filter(Boolean).join('_');
   },
 
   download(blob, filename) {
