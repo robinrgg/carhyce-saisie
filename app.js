@@ -26,40 +26,8 @@ const App = {
     this.bindHome();
     this.bindOperationScreen();
     this.bindExport();
-    this.bindBackButton();
     await this.showHome();
     this.registerSW();
-  },
-
-  // Intercepte le bouton retour du téléphone (Android) ou le geste retour
-  // (iOS) pour qu'il déclenche le retour interne de l'app plutôt que de
-  // fermer l'application. Mécanisme : on pousse un état dans l'historique
-  // au démarrage, et chaque popstate est traité comme un clic sur btn-back
-  // sauf si on est déjà à l'accueil (auquel cas l'app peut être fermée).
-  bindBackButton() {
-    // Marqueur initial dans l'historique
-    window.history.replaceState({ carhyce: 'home' }, '');
-    window.history.pushState({ carhyce: 'guard' }, '');
-
-    window.addEventListener('popstate', () => {
-      const s = this.state.screen;
-      if (s === 'home') {
-        // À l'accueil : on laisse le retour fermer l'app au prochain appui,
-        // mais on remet un garde-fou pour éviter une fermeture accidentelle
-        // si l'utilisateur revient
-        window.history.pushState({ carhyce: 'guard' }, '');
-        return;
-      }
-      window.history.pushState({ carhyce: 'guard' }, '');
-      if (s === 'op') {
-        // Sommaire opération : on remonte directement à l'accueil
-        this.showHome();
-        return;
-      }
-      // Tous les autres écrans : simuler un retour interne (btn-back)
-      const back = document.getElementById('btn-back');
-      if (back && !back.hidden) back.click();
-    });
   },
 
   registerSW() {
@@ -1256,13 +1224,10 @@ const App = {
       addBtn.addEventListener('click', () => {
         const lastDist = tr.points.length ? tr.points[tr.points.length - 1].distance_m : 0;
         const step = tr.distance_interpoints_appliquee_m || this.state.op.station.distance_interpoints_appliquee_m || 1;
-        // Premier point (transect vide) : distance = 0, substrat verrouillé à "-"
-        // Points suivants : substrat par défaut TV (modifiable)
-        const estPremier = tr.points.length === 0;
         tr.points.push({
-          distance_m: estPremier ? 0 : (lastDist != null ? +lastDist : 0) + step,
-          profondeur_cm: estPremier && tr.hpb_m != null ? -tr.hpb_m * 100 : null,
-          substrat_min: estPremier ? '-' : 'TV',
+          distance_m: (lastDist != null ? +lastDist : 0) + step,
+          profondeur_cm: null,
+          substrat_min: 'TV',
           substrat_add_1: '',
           substrat_add_2: '',
         });
@@ -1283,18 +1248,13 @@ const App = {
         let d = 0;
         let first = true;
         while (d <= tr.lpb_m + 1e-6) {
-          // Premier point : profondeur = -Hpb (haut de berge), substrat verrouillé à "-"
-          // (pas de substrat applicable hors d'eau)
+          // Premier point : profondeur = -Hpb (haut de berge au-dessus de la ligne d'eau)
           let prof = null;
-          let substr = 'TV';
-          if (first) {
-            if (tr.hpb_m != null) prof = -tr.hpb_m * 100;
-            substr = '-';
-          }
+          if (first && tr.hpb_m != null) prof = -tr.hpb_m * 100;
           tr.points.push({
             distance_m: +d.toFixed(2),
             profondeur_cm: prof,
-            substrat_min: substr,
+            substrat_min: 'TV',
             substrat_add_1: '',
             substrat_add_2: '',
           });
@@ -1358,90 +1318,33 @@ const App = {
         distTd.appendChild(dInp);
         row.appendChild(distTd);
 
-        // Profondeur — bouton ± à gauche pour inverser le signe
-        // (les claviers numériques mobiles n'affichent pas toujours le -)
+        // Profondeur
         const profTd = document.createElement('td');
         profTd.className = 'col-prof';
-        const profWrap = document.createElement('div');
-        profWrap.style.display = 'flex';
-        profWrap.style.gap = '2px';
-        profWrap.style.alignItems = 'stretch';
-
-        const signBtn = document.createElement('button');
-        signBtn.type = 'button';
-        signBtn.textContent = '±';
-        signBtn.title = 'Inverser le signe (positif ↔ négatif)';
-        signBtn.style.padding = '0';
-        signBtn.style.width = '28px';
-        signBtn.style.minHeight = '36px';
-        signBtn.style.fontSize = '1rem';
-        signBtn.style.fontWeight = '700';
-        signBtn.style.background = '#eef3f8';
-        signBtn.style.border = '1px solid var(--border-dark)';
-        signBtn.style.borderRadius = '4px';
-        signBtn.style.cursor = 'pointer';
-        signBtn.style.color = 'var(--primary-dk)';
-        signBtn.style.flex = '0 0 28px';
-
         const pInp = document.createElement('input');
         pInp.type = 'text'; pInp.inputMode = 'decimal'; pInp.autocomplete = 'off';
         pInp.value = pt.profondeur_cm == null ? '' : pt.profondeur_cm;
-        pInp.style.flex = '1';
         pInp.addEventListener('input', () => {
           pt.profondeur_cm = parseNum(pInp.value);
           this.refreshProfileChart();
           this.refreshTransectCalc();
           this.scheduleSave();
         });
-
-        signBtn.addEventListener('click', () => {
-          // Si pas de valeur : on prépare une saisie négative
-          if (pt.profondeur_cm == null) {
-            pInp.value = '-';
-            pInp.focus();
-            return;
-          }
-          // Sinon on inverse le signe
-          pt.profondeur_cm = -pt.profondeur_cm;
-          pInp.value = pt.profondeur_cm;
-          this.refreshProfileChart();
-          this.refreshTransectCalc();
-          this.scheduleSave();
-        });
-
-        profWrap.appendChild(signBtn);
-        profWrap.appendChild(pInp);
-        profTd.appendChild(profWrap);
+        profTd.appendChild(pInp);
         row.appendChild(profTd);
 
-        // Substrat principal
-        // - Pour le premier point du transect (distance = 0, sur la berge) :
-        //   pas de substrat applicable, on force "-" et on verrouille la cellule.
-        // - Pour les autres points : valeur par défaut TV, modifiable librement.
-        const estPremierPoint = (i === 0);
+        // Substrat principal (pas de blank possible : valeur par défaut TV)
         const sTd = document.createElement('td');
         const sSel = document.createElement('select');
-        // On ajoute toujours l'option "-" en tête, et c'est la seule possible
-        // pour le premier point.
-        const optTiret = document.createElement('option');
-        optTiret.value = '-';
-        optTiret.textContent = '-';
-        sSel.appendChild(optTiret);
         NOM.substrats_mineraux.forEach(s => {
           const o = document.createElement('option');
           o.value = s.code; o.textContent = `${s.code} — ${s.libelle}`;
           sSel.appendChild(o);
         });
-        if (estPremierPoint) {
-          pt.substrat_min = '-';
-          sSel.value = '-';
-          sSel.disabled = true;
-          sSel.title = 'Le premier point est sur la berge : pas de substrat applicable';
-        } else {
-          if (!pt.substrat_min || pt.substrat_min === '-') pt.substrat_min = 'TV';
-          sSel.value = pt.substrat_min;
-          sSel.addEventListener('change', () => { pt.substrat_min = sSel.value; this.scheduleSave(); });
-        }
+        // Si pas de valeur ou vide, on force TV
+        if (!pt.substrat_min) pt.substrat_min = 'TV';
+        sSel.value = pt.substrat_min;
+        sSel.addEventListener('change', () => { pt.substrat_min = sSel.value; this.scheduleSave(); });
         sTd.appendChild(sSel);
         row.appendChild(sTd);
 
